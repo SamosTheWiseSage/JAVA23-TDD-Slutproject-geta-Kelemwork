@@ -95,7 +95,7 @@ public class ATMTest {
         // Verify that incrementFailedAttempts was called 3 times
         verify(user, times(3)).incrementFailedAttempts();
 
-        // Verify that lockCard() was called exactly once after the 3rd failed attempt
+        // Verify that lockCard() was called after the 3rd failed attempt
         verify(user, times(2)).lockCard();
 
         // Assert that the user is locked after 3 failed attempts
