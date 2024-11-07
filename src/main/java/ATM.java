@@ -18,17 +18,24 @@ public class ATM {
         if (currentUser == null) {
             throw new IllegalStateException("No card inserted.");
         }
+
+        if (currentUser.isLocked()) {
+            return false;
+        }
+
         if (currentUser.getPin().equals(pin)) {
             currentUser.resetFailedAttempts();
-            return true; // Login successful
+            return true; // Successful login
         } else {
             currentUser.incrementFailedAttempts();
             if (currentUser.getFailedAttempts() >= 3) {
-                currentUser.lockCard(); // Lock the card after 3 failed attempts
+                currentUser.lockCard();  // Lock the card after 3 failed attempts
             }
-            return false; // Login failed
+            return false; // Failed login
         }
     }
+
+
 
     public double checkBalance() {
         if (currentUser != null) {
@@ -56,4 +63,3 @@ public class ATM {
         throw new IllegalStateException("No user logged in.");
     }
 }
-

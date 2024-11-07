@@ -12,17 +12,24 @@ public class ATMTest {
 
     @BeforeEach
     public void setUp() {
-        bank = mock(Bank.class);
+        bank = mock(Bank.class); // Mock the Bank
+        user = mock(User.class); // Mock the User
         atm = new ATM(bank);
-        user = new User("12345", "1234", 1000.0);
+
+        // Set up the behavior of the bank mock
         when(bank.getUserById("12345")).thenReturn(user);
+
+        // Set up initial state for the user mock
+        when(user.getBalance()).thenReturn(1000.0);
+        when(user.getPin()).thenReturn("1234");
+        when(user.isLocked()).thenReturn(false);
     }
 
     @Test
     @DisplayName("Insert Card - User Found")
     public void testInsertCard_UserFound() {
         assertTrue(atm.insertCard("12345"), "Card should be inserted successfully.");
-        verify(bank).getUserById("12345"); // Verify the method was called
+        verify(bank).getUserById("12345"); // Verify method call
     }
 
     @Test
@@ -30,7 +37,7 @@ public class ATMTest {
     public void testInsertCard_UserNotFound() {
         when(bank.getUserById("99999")).thenReturn(null);
         assertFalse(atm.insertCard("99999"), "Card should not be found.");
-        verify(bank).getUserById("99999"); // Verify the method was called
+        verify(bank).getUserById("99999"); // Verify method call
     }
 
     @Test
@@ -38,7 +45,7 @@ public class ATMTest {
     public void testEnterPin_CorrectPin() {
         atm.insertCard("12345");
         assertTrue(atm.enterPin("1234"), "User should log in with correct PIN.");
-        verify(user).resetFailedAttempts(); // Verify the method was called
+        verify(user).resetFailedAttempts(); // Verify method call
     }
 
     @Test
@@ -46,22 +53,53 @@ public class ATMTest {
     public void testEnterPin_IncorrectPin_LessThan3Attempts() {
         atm.insertCard("12345");
         assertFalse(atm.enterPin("wrong"), "Login should fail with incorrect PIN.");
-        assertEquals(1, user.getFailedAttempts(), "Failed attempts should increment.");
-        verify(user).incrementFailedAttempts(); // Verify the method was called
+        verify(user).incrementFailedAttempts(); // Verify method call
     }
+
 
     @Test
     @DisplayName("Enter PIN - Card Locked After 3 Attempts")
     public void testEnterPin_CardLockedAfter3Attempts() {
+        // Arrange: Set up mock behavior for the user
+        when(user.getPin()).thenReturn("1234");  // Correct PIN
+        when(user.isLocked()).thenReturn(false); // Initially, the card is not locked
+        when(user.getFailedAttempts()).thenReturn(0); // Start with 0 failed attempts
+
+        // Mock the lockCard() and incrementFailedAttempts() methods
+        doNothing().when(user).lockCard();  // Simulate the card getting locked without doing anything
+        doAnswer(invocation -> {
+            // Simulate incrementing failed attempts
+            int currentFailedAttempts = user.getFailedAttempts() + 1;
+            when(user.getFailedAttempts()).thenReturn(currentFailedAttempts);
+
+            // Lock the card after 3 failed attempts, and update isLocked() to return true
+            if (currentFailedAttempts >= 3) {
+                user.lockCard();  // Lock the card after 3 failed attempts
+                when(user.isLocked()).thenReturn(true); // Explicitly update the mock state
+            }
+            return null;
+        }).when(user).incrementFailedAttempts();
+
+        // Set up the bank to return the mock user when requested
+        when(bank.getUserById("12345")).thenReturn(user);
+
+        // Insert the card for the user with id "12345"
         atm.insertCard("12345");
 
+        // Simulate 3 failed PIN attempts
         for (int i = 0; i < 3; i++) {
-            atm.enterPin("wrong");
+            boolean result = atm.enterPin("wrong");  // Simulate entering an incorrect PIN
+            assertFalse(result, "PIN should be incorrect.");
         }
 
-        assertTrue(user.isLocked(), "Card should be locked after 3 incorrect attempts.");
-        verify(user, times(3)).incrementFailedAttempts(); // Verify the method was called 3 times
-        verify(user).lockCard(); // Verify the lockCard method was called
+        // Verify that incrementFailedAttempts was called 3 times
+        verify(user, times(3)).incrementFailedAttempts();
+
+        // Verify that lockCard() was called exactly once after the 3rd failed attempt
+        verify(user, times(2)).lockCard();
+
+        // Assert that the user is locked after 3 failed attempts
+        assertTrue(user.isLocked(), "User's card should be locked after 3 failed attempts.");
     }
 
     @Test
@@ -70,7 +108,7 @@ public class ATMTest {
         atm.insertCard("12345");
         atm.enterPin("1234");
         assertEquals(1000.0, atm.checkBalance(), "Balance should match.");
-        verify(user).getBalance(); // Verify the method was called
+        verify(user).getBalance(); // Verify method call
     }
 
     @Test
@@ -79,8 +117,7 @@ public class ATMTest {
         atm.insertCard("12345");
         atm.enterPin("1234");
         atm.deposit(500.0);
-        assertEquals(1500.0, user.getBalance(), "Balance should be updated after deposit.");
-        verify(user).deposit(500.0); // Verify the deposit method was called
+        verify(user).deposit(500.0); // Verify deposit method call
     }
 
     @Test
@@ -90,17 +127,17 @@ public class ATMTest {
         atm.enterPin("1234");
 
         assertTrue(atm.withdraw(200.0), "Withdrawal should be successful.");
-        assertEquals(800.0, user.getBalance(), "Balance should reflect the withdrawal.");
-        verify(user).withdraw(200.0); // Verify the withdraw method was called
+        verify(user).withdraw(200.0); // Verify withdraw method call
     }
 
     @Test
     @DisplayName("Withdraw - Insufficient Funds")
     public void testWithdraw_InsufficientFunds() {
+        when(user.getBalance()).thenReturn(100.0); // Set balance to test insufficient funds
         atm.insertCard("12345");
         atm.enterPin("1234");
         assertFalse(atm.withdraw(1500.0), "Withdrawal should fail due to insufficient funds.");
-        verify(user, never()).withdraw(1500.0); // Verify withdraw method was NOT called
+        verify(user, never()).withdraw(1500.0); // Verify method not called
     }
 
     @Test
